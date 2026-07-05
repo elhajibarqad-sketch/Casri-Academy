@@ -1,0 +1,10 @@
+ALTER TABLE "User" ADD COLUMN "firebaseUid" TEXT;
+ALTER TABLE "User" ADD COLUMN "photoURL" TEXT;
+ALTER TABLE "User" ADD COLUMN "phoneNumber" TEXT;
+ALTER TABLE "User" ADD COLUMN "googleVerified" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "User" ADD COLUMN "phoneVerified" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "User" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE "User" ADD COLUMN "lastLoginAt" TIMESTAMP(3);
+ALTER TABLE "User" ALTER COLUMN "passwordHash" DROP NOT NULL;
+
+CREATE UNIQUE INDEX "User_firebaseUid_key" ON "User"("firebaseUid");

@@ -1,0 +1,22 @@
+import Link from "next/link";
+import { Suspense } from "react";
+import { AuthForm } from "@/components/auth-form";
+import { Logo } from "@/components/logo";
+
+export default function LoginPage() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-slate-50 px-5 dark:bg-slate-950">
+      <div className="w-full max-w-md">
+        <Logo />
+        <h1 className="mt-10 text-4xl font-black text-slate-950 dark:text-white">Welcome back.</h1>
+        <p className="mt-3 text-slate-500 dark:text-slate-400">Login to continue your courses and manage your account.</p>
+        <div className="mt-8">
+          <Suspense fallback={<div className="rounded-[2rem] border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-soft dark:border-white/10 dark:bg-white/5">Loading form...</div>}>
+            <AuthForm mode="login" />
+          </Suspense>
+        </div>
+        <p className="mt-5 text-sm text-slate-500">New to Casri? <Link className="font-bold text-cyan-600" href="/signup">Create account</Link></p>
+      </div>
+    </main>
+  );
+}
