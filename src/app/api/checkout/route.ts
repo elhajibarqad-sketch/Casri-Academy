@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireVerifiedUser } from "@/lib/auth/guards";
 import { validateCsrfToken } from "@/lib/auth/session";
+import { env } from "@/lib/env";
 import { createCheckoutSession } from "@/lib/payments/provider";
 import { prisma } from "@/lib/prisma";
 
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.redirect(checkout.checkoutUrl ?? `${process.env.APP_URL}/dashboard/orders/confirmation?order=${order.id}`);
+    return NextResponse.redirect(checkout.checkoutUrl ?? `${env.APP_URL}/dashboard/orders/confirmation?order=${order.id}`);
   } catch (error) {
     return authErrorResponse(error);
   }

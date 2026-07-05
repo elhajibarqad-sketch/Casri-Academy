@@ -7,8 +7,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url:
-      process.env.DATABASE_URL ??
-      "postgresql://postgres:postgres@localhost:5432/casri_academy?schema=public",
+    url: process.env.DATABASE_URL,
   },
 });

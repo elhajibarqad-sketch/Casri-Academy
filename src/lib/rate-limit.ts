@@ -1,62 +1,123 @@
 import Redis from "ioredis";
+import { randomUUID } from "crypto";
+import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+type RateLimitResult = {
+  ok: boolean;
+  remaining: number;
+  reset: number;
+  store: "redis" | "upstash" | "database" | "memory";
+};
 
 let redis: Redis | null = null;
+let warnedMemory = false;
 
-function getRedisClient(): Redis {
+const memoryBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function redisClient() {
+  if (!process.env.REDIS_URL) return null;
   if (!redis) {
-    const redisUrl = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
-    if (!redisUrl) {
-      throw new Error("REDIS_URL or UPSTASH_REDIS_REST_URL environment variable is required for rate limiting");
-    }
-    redis = new Redis(redisUrl, {
-      maxRetriesPerRequest: 3,
-      retryStrategy: (times: number) => Math.min(times * 50, 2000),
+    redis = new Redis(process.env.REDIS_URL, {
+      maxRetriesPerRequest: 2,
+      retryStrategy: (attempt) => Math.min(attempt * 100, 1000),
     });
   }
   return redis;
 }
 
-export async function rateLimit(key: string, limit = 20, windowMs = 60_000) {
-  // Fallback to in-memory for development if Redis is not configured
-  if (process.env.NODE_ENV === "development" && !process.env.REDIS_URL && !process.env.UPSTASH_REDIS_REST_URL) {
-    const buckets = globalThis as unknown as { rateLimitBuckets?: Map<string, { count: number; resetAt: number }> };
-    if (!buckets.rateLimitBuckets) {
-      buckets.rateLimitBuckets = new Map();
-    }
-    const now = Date.now();
-    const bucket = buckets.rateLimitBuckets.get(key);
-    if (!bucket || bucket.resetAt < now) {
-      buckets.rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
-      return { ok: true };
-    }
-    bucket.count += 1;
-    return { ok: bucket.count <= limit };
+async function upstashCommand<T>(command: unknown[]): Promise<T> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) throw new Error("Upstash REST rate limiter is not configured.");
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(command),
+  });
+  const data = (await response.json()) as { result?: T; error?: string };
+  if (!response.ok || data.error) throw new Error(data.error ?? "Upstash rate limiter request failed.");
+  return data.result as T;
+}
+
+function memoryRateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
+  if (process.env.NODE_ENV === "production" && !warnedMemory) {
+    warnedMemory = true;
+    logger.warn("Using in-process rate limiting. Configure REDIS_URL or UPSTASH_REDIS_REST_URL for multi-instance production.");
   }
 
+  const now = Date.now();
+  const bucket = memoryBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    const resetAt = now + windowMs;
+    memoryBuckets.set(key, { count: 1, resetAt });
+    return { ok: true, remaining: Math.max(0, limit - 1), reset: resetAt, store: "memory" };
+  }
+
+  bucket.count += 1;
+  return { ok: bucket.count <= limit, remaining: Math.max(0, limit - bucket.count), reset: bucket.resetAt, store: "memory" };
+}
+
+async function redisRateLimit(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {
+  const client = redisClient();
+  if (!client) throw new Error("Redis URL is not configured.");
+
+  const now = Date.now();
+  const resetAt = now + windowMs;
+  const count = await client.incr(key);
+  if (count === 1) await client.pexpire(key, windowMs);
+  const ttl = await client.pttl(key);
+  return { ok: count <= limit, remaining: Math.max(0, limit - count), reset: ttl > 0 ? now + ttl : resetAt, store: "redis" };
+}
+
+async function upstashRateLimit(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {
+  const now = Date.now();
+  const resetAt = now + windowMs;
+  const count = Number(await upstashCommand<number>(["INCR", key]));
+  if (count === 1) await upstashCommand(["PEXPIRE", key, windowMs]);
+  const ttl = Number(await upstashCommand<number>(["PTTL", key]));
+  return { ok: count <= limit, remaining: Math.max(0, limit - count), reset: ttl > 0 ? now + ttl : resetAt, store: "upstash" };
+}
+
+async function databaseRateLimit(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {
+  const now = new Date();
+  const resetAt = new Date(now.getTime() + windowMs);
+
+  const [bucket] = await prisma.$queryRaw<Array<{ count: number; resetAt: Date }>>`
+    INSERT INTO "RateLimitBucket" ("id", "key", "count", "resetAt", "createdAt", "updatedAt")
+    VALUES (${randomUUID()}, ${key}, 1, ${resetAt}, ${now}, ${now})
+    ON CONFLICT ("key") DO UPDATE SET
+      "count" = CASE
+        WHEN "RateLimitBucket"."resetAt" <= ${now} THEN 1
+        ELSE "RateLimitBucket"."count" + 1
+      END,
+      "resetAt" = CASE
+        WHEN "RateLimitBucket"."resetAt" <= ${now} THEN ${resetAt}
+        ELSE "RateLimitBucket"."resetAt"
+      END,
+      "updatedAt" = ${now}
+    RETURNING "count", "resetAt";
+  `;
+
+  return {
+    ok: bucket.count <= limit,
+    remaining: Math.max(0, limit - bucket.count),
+    reset: bucket.resetAt.getTime(),
+    store: "database",
+  };
+}
+
+export async function rateLimit(key: string, limit = 20, windowMs = 60_000): Promise<RateLimitResult> {
   try {
-    const client = getRedisClient();
-    const now = Date.now();
-    const windowStart = now - windowMs;
-    
-    // Use Redis pipeline for atomic operations
-    const pipeline = client.pipeline();
-    pipeline.zremrangebyscore(key, "-inf", windowStart);
-    pipeline.zcard(key);
-    pipeline.zadd(key, now, `${now}-${Math.random()}`);
-    pipeline.expire(key, Math.ceil(windowMs / 1000));
-    
-    const results = await pipeline.exec();
-    if (!results) {
-      throw new Error("Redis pipeline failed");
-    }
-    
-    const count = results[1][1] as number;
-    const newCount = count + 1;
-    
-    return { ok: newCount <= limit, remaining: Math.max(0, limit - newCount), reset: now + windowMs };
+    if (process.env.REDIS_URL) return await redisRateLimit(key, limit, windowMs);
+    if (process.env.UPSTASH_REDIS_REST_URL) return await upstashRateLimit(key, limit, windowMs);
+    return await databaseRateLimit(key, limit, windowMs);
   } catch (error) {
-    console.error("Rate limiting error:", error);
-    // Fail open - allow request if rate limiting fails
-    return { ok: true };
+    logger.error({ error, key }, "Rate limiter store failed; falling back to memory limiter");
+    return memoryRateLimit(key, limit, windowMs);
   }
 }

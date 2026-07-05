@@ -14,6 +14,9 @@ function getDatabaseUrl(): string {
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const adapter = new PrismaPg({
   connectionString: getDatabaseUrl(),
+  connectionTimeoutMillis: 15_000,
+  idleTimeoutMillis: 30_000,
+  max: Number(process.env.DATABASE_POOL_MAX ?? 5),
 });
 
 export const prisma =

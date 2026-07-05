@@ -96,13 +96,38 @@ export function getCsrfCookie(request: NextRequest): string | undefined {
   return request.cookies.get(CSRF_COOKIE_NAME)?.value;
 }
 
+function allowedRequestOrigins(request: NextRequest) {
+  const origins = new Set([request.nextUrl.origin]);
+  const host = request.headers.get("host");
+
+  if (host) {
+    origins.add(`http://${host}`);
+    origins.add(`https://${host}`);
+  }
+
+  return origins;
+}
+
 export function validateCsrfToken(request: NextRequest): boolean {
   const cookieToken = getCsrfCookie(request);
   const headerToken = request.headers.get("x-csrf-token");
-  
-  if (!cookieToken || !headerToken) {
+
+  if (headerToken) {
+    return Boolean(cookieToken && headerToken && cookieToken === headerToken);
+  }
+
+  const expectedOrigins = allowedRequestOrigins(request);
+  const origin = request.headers.get("origin");
+  if (origin) return expectedOrigins.has(origin);
+
+  const referer = request.headers.get("referer");
+  if (!referer) {
+    return process.env.NODE_ENV !== "production";
+  }
+
+  try {
+    return expectedOrigins.has(new URL(referer).origin);
+  } catch {
     return false;
   }
-  
-  return cookieToken === headerToken;
 }

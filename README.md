@@ -24,13 +24,11 @@ cp .env.example .env
 2. Set required environment variables:
 
 ```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/casri_academy?schema=public"
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=verify-full"
 AUTH_SECRET="generate-a-long-random-secret-at-least-32-chars"
 APP_URL="http://localhost:3000"
-PAYMENT_PROVIDER="stripe"
-STRIPE_SECRET_KEY="sk_live_or_test_key"
-STRIPE_WEBHOOK_SECRET="whsec_..."
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_live_or_test_key"
+PAYMENT_PROVIDER="manual"
+MEDIA_PROVIDER="none"
 ```
 
 3. Install and generate Prisma:
@@ -38,7 +36,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_live_or_test_key"
 ```bash
 npm install
 npm run prisma:generate
-npm run prisma:migrate
+npm run prisma:migrate:deploy
 npm run seed:admin
 ```
 
@@ -64,7 +62,9 @@ Open `http://localhost:3000`.
 
 ## Database Models
 
-Implemented models: `User`, `Profile`, `Course`, `Lesson`, `CoursePreview`, `Enrollment`, `Payment`, `Order`, `Progress`, `Certificate`, `AdminLog`, `MarketDataCache`, `BlogPost`, `ContactMessage`.
+Implemented models: `User`, `Profile`, `Course`, `Lesson`, `CoursePreview`, `Enrollment`, `Payment`, `Order`, `Progress`, `Certificate`, `AdminLog`, `MarketDataCache`, `BlogPost`, `ContactMessage`, `NewsletterSubscriber`, `RateLimitBucket`.
+
+See `DEPLOYMENT.md` for Firebase, Vercel, Neon/Postgres, Stripe, Cloudinary, and production checklist details.
 
 ## Security Checklist
 
@@ -74,7 +74,7 @@ Implemented models: `User`, `Profile`, `Course`, `Lesson`, `CoursePreview`, `Enr
 - Protected dashboard/admin routes in middleware
 - Admin-only API guards
 - Input validation with Zod
-- Rate limiting on auth/contact routes
+- Database-backed rate limiting on auth/contact/newsletter/OTP routes, with Redis and Upstash support
 - Stripe webhook signature validation
 - Paid lesson access checks in course/progress APIs
 - API keys read only from environment variables

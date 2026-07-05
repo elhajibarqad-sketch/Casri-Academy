@@ -1,20 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import Redis from "ioredis";
-
-let redisClient: Redis | null = null;
-
-function getRedisClient(): Redis | null {
-  if (!redisClient && (process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL)) {
-    const redisUrl = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
-    redisClient = new Redis(redisUrl, {
-      maxRetriesPerRequest: 1,
-      retryStrategy: () => null, // Don't retry for health check
-    });
-  }
-  return redisClient;
-}
+import { getProviderStatus, validateEnv } from "@/lib/env";
 
 export async function GET() {
   const health = {
@@ -22,8 +9,11 @@ export async function GET() {
     timestamp: new Date().toISOString(),
     services: {
       database: "unknown",
-      redis: "unknown",
+      rateLimit: "unknown",
       config: "ok",
+      firebase: "unknown",
+      payment: "unknown",
+      media: "unknown",
     },
   };
 
@@ -37,29 +27,17 @@ export async function GET() {
     logger.error({ error }, "Database health check failed");
   }
 
-  // Check Redis connection (if configured)
   try {
-    const redis = getRedisClient();
-    if (redis) {
-      await redis.ping();
-      health.services.redis = "ok";
-    } else {
-      health.services.redis = "not_configured";
-    }
+    validateEnv();
+    const providers = getProviderStatus();
+    health.services.rateLimit = providers.rateLimitStore;
+    health.services.firebase = providers.firebaseConfigured ? "configured" : "not_configured";
+    health.services.payment = providers.paymentProvider;
+    health.services.media = providers.mediaProvider;
   } catch (error) {
-    health.services.redis = "error";
-    health.status = "degraded";
-    logger.error({ error }, "Redis health check failed");
-  }
-
-  // Check critical configuration
-  const requiredEnvVars = ["DATABASE_URL", "AUTH_SECRET", "APP_URL"];
-  const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
-  
-  if (missingVars.length > 0) {
     health.services.config = "error";
     health.status = "unhealthy";
-    logger.error({ missingVars }, "Critical environment variables missing");
+    logger.error({ error }, "Configuration health check failed");
   }
 
   const statusCode = health.status === "healthy" ? 200 : health.status === "degraded" ? 503 : 503;

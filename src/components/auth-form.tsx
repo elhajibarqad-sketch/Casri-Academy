@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signInWithPopup } from "firebase/auth";
-import { Chrome, Loader2, ShieldCheck } from "lucide-react";
+import { Chrome, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { getFirebaseClientAuth, getGoogleProvider } from "@/lib/firebase/client";
 
@@ -11,6 +11,14 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const searchParams = useSearchParams();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  function safeNextPath() {
+    const next = searchParams.get("next");
+    return next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  }
 
   async function continueWithGoogle() {
     setLoading(true);
@@ -25,8 +33,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         body: JSON.stringify({ idToken }),
       });
       const data = await response.json();
-      const next = searchParams.get("next");
-      const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+      const safeNext = safeNextPath();
 
       if (response.status === 202 && data.requiresPhoneVerification) {
         window.location.assign(`/verify-otp?next=${encodeURIComponent(safeNext)}`);
@@ -44,8 +51,84 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     }
   }
 
+  async function loginWithPassword(event: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setPasswordLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password, next: safeNextPath() }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error ?? "Unable to sign in.");
+        return;
+      }
+      window.location.assign(data.redirectTo ?? safeNextPath());
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : "Unable to sign in.");
+    } finally {
+      setPasswordLoading(false);
+    }
+  }
+
   return (
     <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-soft dark:border-white/10 dark:bg-white/5">
+      {mode === "login" && (
+        <>
+          <form action={`/api/auth/login?next=${encodeURIComponent(safeNextPath())}`} method="post" onSubmit={loginWithPassword} className="grid gap-4">
+            <input type="hidden" name="next" value={safeNextPath()} />
+            <label className="grid gap-2 text-sm font-bold text-slate-700 dark:text-slate-200" htmlFor="email">
+              Email
+              <span className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 focus-within:border-cyan-400 focus-within:ring-4 focus-within:ring-cyan-100 dark:border-white/10 dark:focus-within:ring-cyan-300/10">
+                <Mail className="h-5 w-5 text-slate-400" />
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="email"
+                  placeholder="admin@casri.academy"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-950 outline-none dark:text-white"
+                />
+              </span>
+            </label>
+            <label className="grid gap-2 text-sm font-bold text-slate-700 dark:text-slate-200" htmlFor="password">
+              Password
+              <span className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 focus-within:border-cyan-400 focus-within:ring-4 focus-within:ring-cyan-100 dark:border-white/10 dark:focus-within:ring-cyan-300/10">
+                <Lock className="h-5 w-5 text-slate-400" />
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="current-password"
+                  placeholder="Enter password"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-950 outline-none dark:text-white"
+                />
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={loginWithPassword}
+              disabled={passwordLoading}
+              className="rounded-full bg-cyan-600 px-5 py-3 font-black text-white transition hover:bg-cyan-700 disabled:opacity-60"
+            >
+              {passwordLoading ? <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Signing in</span> : "Sign in"}
+            </button>
+          </form>
+          <div className="my-5 flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+            <span className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+            or
+            <span className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+          </div>
+        </>
+      )}
       <button
         type="button"
         onClick={continueWithGoogle}

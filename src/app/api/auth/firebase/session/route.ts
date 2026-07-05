@@ -15,7 +15,7 @@ function safeName(name: string | undefined, email: string) {
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for") ?? "local";
-  if (!rateLimit(`firebase-session:${ip}`, 20).ok) {
+  if (!(await rateLimit(`firebase-session:${ip}`, 20)).ok) {
     return NextResponse.json({ error: "Too many authentication attempts." }, { status: 429 });
   }
 

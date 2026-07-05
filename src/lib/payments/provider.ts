@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { env } from "@/lib/env";
 
 type CheckoutInput = {
   orderId: string;
@@ -10,18 +11,14 @@ type CheckoutInput = {
 };
 
 export async function createCheckoutSession(input: CheckoutInput) {
-  if (process.env.PAYMENT_PROVIDER !== "stripe" || !process.env.STRIPE_SECRET_KEY) {
+  if (env.PAYMENT_PROVIDER !== "stripe") {
     return {
       provider: "manual",
-      checkoutUrl: `${process.env.APP_URL}/dashboard/orders/confirmation?order=${input.orderId}`,
+      checkoutUrl: `${env.APP_URL}/dashboard/orders/confirmation?order=${input.orderId}`,
     };
   }
 
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error("STRIPE_SECRET_KEY is required when PAYMENT_PROVIDER=stripe.");
-  }
-
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  const stripe = new Stripe(env.STRIPE_SECRET_KEY!);
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: input.userEmail,
@@ -39,8 +36,8 @@ export async function createCheckoutSession(input: CheckoutInput) {
       },
     ],
     metadata: { orderId: input.orderId, courseId: input.courseId },
-    success_url: `${process.env.APP_URL}/dashboard/orders/confirmation?order=${input.orderId}`,
-    cancel_url: `${process.env.APP_URL}/dashboard/checkout/${input.courseId}`,
+    success_url: `${env.APP_URL}/dashboard/orders/confirmation?order=${input.orderId}`,
+    cancel_url: `${env.APP_URL}/dashboard/checkout/${input.courseId}`,
   });
 
   return { provider: "stripe", checkoutUrl: session.url };

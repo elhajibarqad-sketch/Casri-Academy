@@ -1,24 +1,18 @@
-/**
- * Centralized environment variable validation
- * This file validates all required environment variables at startup
- */
+type PaymentProvider = "manual" | "stripe";
+type MediaProvider = "none" | "cloudinary";
 
-interface EnvConfig {
-  // Required
+export interface EnvConfig {
   DATABASE_URL: string;
   AUTH_SECRET: string;
   APP_URL: string;
-  
-  // Optional but recommended
+  PAYMENT_PROVIDER: PaymentProvider;
+  MEDIA_PROVIDER: MediaProvider;
   REDIS_URL?: string;
   UPSTASH_REDIS_REST_URL?: string;
-  
-  // Payment (if using Stripe)
+  UPSTASH_REDIS_REST_TOKEN?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?: string;
-  
-  // Firebase (if using Firebase auth)
   FIREBASE_PROJECT_ID?: string;
   FIREBASE_CLIENT_EMAIL?: string;
   FIREBASE_PRIVATE_KEY?: string;
@@ -26,115 +20,142 @@ interface EnvConfig {
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN?: string;
   NEXT_PUBLIC_FIREBASE_PROJECT_ID?: string;
   NEXT_PUBLIC_FIREBASE_APP_ID?: string;
-  
-  // Cloudinary (if using for media)
   CLOUDINARY_CLOUD_NAME?: string;
   CLOUDINARY_API_KEY?: string;
   CLOUDINARY_API_SECRET?: string;
-  
-  // Admin
   ADMIN_EMAIL?: string;
   ADMIN_PASSWORD?: string;
 }
 
-function validateEnv(): EnvConfig {
-  const errors: string[] = [];
-  
-  // Required variables
-  if (!process.env.DATABASE_URL) {
-    errors.push("DATABASE_URL is required");
+function optional(name: string) {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
+function required(name: string, errors: string[]) {
+  const value = optional(name);
+  if (!value) errors.push(`${name} is required`);
+  return value ?? "";
+}
+
+function parsePaymentProvider(errors: string[]): PaymentProvider {
+  const provider = optional("PAYMENT_PROVIDER") ?? "manual";
+  if (provider !== "manual" && provider !== "stripe") {
+    errors.push("PAYMENT_PROVIDER must be manual or stripe");
+    return "manual";
   }
-  
-  if (!process.env.AUTH_SECRET) {
-    errors.push("AUTH_SECRET is required (must be at least 32 characters)");
-  } else if (process.env.AUTH_SECRET.length < 32) {
+  return provider;
+}
+
+function parseMediaProvider(errors: string[]): MediaProvider {
+  const provider = optional("MEDIA_PROVIDER") ?? "none";
+  if (provider !== "none" && provider !== "cloudinary") {
+    errors.push("MEDIA_PROVIDER must be none or cloudinary");
+    return "none";
+  }
+  return provider;
+}
+
+export function validateEnv(): EnvConfig {
+  const errors: string[] = [];
+  const paymentProvider = parsePaymentProvider(errors);
+  const mediaProvider = parseMediaProvider(errors);
+  const authSecret = required("AUTH_SECRET", errors);
+
+  if (authSecret && authSecret.length < 32) {
     errors.push("AUTH_SECRET must be at least 32 characters");
   }
-  
-  if (!process.env.APP_URL) {
-    errors.push("APP_URL is required");
-  }
-  
-  // Payment provider validation
-  if (process.env.PAYMENT_PROVIDER === "stripe") {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      errors.push("STRIPE_SECRET_KEY is required when PAYMENT_PROVIDER=stripe");
-    }
-    if (!process.env.STRIPE_WEBHOOK_SECRET) {
-      errors.push("STRIPE_WEBHOOK_SECRET is required when PAYMENT_PROVIDER=stripe");
-    }
-    if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
-      errors.push("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is required when PAYMENT_PROVIDER=stripe");
+
+  const databaseUrl = required("DATABASE_URL", errors);
+  const appUrl = required("APP_URL", errors);
+  if (appUrl) {
+    try {
+      new URL(appUrl);
+    } catch {
+      errors.push("APP_URL must be a valid absolute URL");
     }
   }
-  
-  // Firebase validation (if configured)
-  if (process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-    const requiredFirebaseVars = [
-      "FIREBASE_PROJECT_ID",
-      "FIREBASE_CLIENT_EMAIL", 
-      "FIREBASE_PRIVATE_KEY",
-      "NEXT_PUBLIC_FIREBASE_API_KEY",
-      "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
-      "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-      "NEXT_PUBLIC_FIREBASE_APP_ID"
-    ];
-    
-    const missingFirebaseVars = requiredFirebaseVars.filter(
-      (varName) => !process.env[varName]
-    );
-    
-    if (missingFirebaseVars.length > 0) {
-      errors.push(`Firebase is partially configured. Missing: ${missingFirebaseVars.join(", ")}`);
+
+  if (paymentProvider === "stripe") {
+    for (const name of ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"]) {
+      required(name, errors);
     }
   }
-  
-  // Cloudinary validation (if configured)
-  if (process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_API_KEY) {
-    if (!process.env.CLOUDINARY_CLOUD_NAME) {
-      errors.push("CLOUDINARY_CLOUD_NAME is required when using Cloudinary");
-    }
-    if (!process.env.CLOUDINARY_API_KEY) {
-      errors.push("CLOUDINARY_API_KEY is required when using Cloudinary");
-    }
-    if (!process.env.CLOUDINARY_API_SECRET) {
-      errors.push("CLOUDINARY_API_SECRET is required when using Cloudinary");
+
+  const firebaseVars = [
+    "FIREBASE_PROJECT_ID",
+    "FIREBASE_CLIENT_EMAIL",
+    "FIREBASE_PRIVATE_KEY",
+    "NEXT_PUBLIC_FIREBASE_API_KEY",
+    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+    "NEXT_PUBLIC_FIREBASE_APP_ID",
+  ];
+  const firebasePresent = firebaseVars.some((name) => optional(name));
+  if (firebasePresent) {
+    for (const name of firebaseVars) required(name, errors);
+  }
+
+  if (mediaProvider === "cloudinary") {
+    for (const name of ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"]) {
+      required(name, errors);
     }
   }
-  
+
+  if (optional("UPSTASH_REDIS_REST_URL") && !optional("UPSTASH_REDIS_REST_TOKEN")) {
+    errors.push("UPSTASH_REDIS_REST_TOKEN is required when UPSTASH_REDIS_REST_URL is set");
+  }
+
   if (errors.length > 0) {
-    console.error("❌ Environment validation failed:");
-    errors.forEach((error) => console.error(`  - ${error}`));
-    console.error("\nPlease check your .env file and ensure all required variables are set.");
-    process.exit(1);
+    throw new Error(`Environment validation failed:\n- ${errors.join("\n- ")}`);
   }
-  
+
   return {
-    DATABASE_URL: process.env.DATABASE_URL!,
-    AUTH_SECRET: process.env.AUTH_SECRET!,
-    APP_URL: process.env.APP_URL!,
-    REDIS_URL: process.env.REDIS_URL,
-    UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
-    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
-    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
-    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
-    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
-    FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
-    FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
-    NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-    CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
-    CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
-    CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
-    ADMIN_EMAIL: process.env.ADMIN_EMAIL,
-    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+    DATABASE_URL: databaseUrl,
+    AUTH_SECRET: authSecret,
+    APP_URL: appUrl,
+    PAYMENT_PROVIDER: paymentProvider,
+    MEDIA_PROVIDER: mediaProvider,
+    REDIS_URL: optional("REDIS_URL"),
+    UPSTASH_REDIS_REST_URL: optional("UPSTASH_REDIS_REST_URL"),
+    UPSTASH_REDIS_REST_TOKEN: optional("UPSTASH_REDIS_REST_TOKEN"),
+    STRIPE_SECRET_KEY: optional("STRIPE_SECRET_KEY"),
+    STRIPE_WEBHOOK_SECRET: optional("STRIPE_WEBHOOK_SECRET"),
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: optional("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
+    FIREBASE_PROJECT_ID: optional("FIREBASE_PROJECT_ID"),
+    FIREBASE_CLIENT_EMAIL: optional("FIREBASE_CLIENT_EMAIL"),
+    FIREBASE_PRIVATE_KEY: optional("FIREBASE_PRIVATE_KEY"),
+    NEXT_PUBLIC_FIREBASE_API_KEY: optional("NEXT_PUBLIC_FIREBASE_API_KEY"),
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: optional("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN"),
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: optional("NEXT_PUBLIC_FIREBASE_PROJECT_ID"),
+    NEXT_PUBLIC_FIREBASE_APP_ID: optional("NEXT_PUBLIC_FIREBASE_APP_ID"),
+    CLOUDINARY_CLOUD_NAME: optional("CLOUDINARY_CLOUD_NAME"),
+    CLOUDINARY_API_KEY: optional("CLOUDINARY_API_KEY"),
+    CLOUDINARY_API_SECRET: optional("CLOUDINARY_API_SECRET"),
+    ADMIN_EMAIL: optional("ADMIN_EMAIL"),
+    ADMIN_PASSWORD: optional("ADMIN_PASSWORD"),
   };
 }
 
-// Validate environment on module load
+export function getProviderStatus() {
+  return {
+    paymentProvider: optional("PAYMENT_PROVIDER") ?? "manual",
+    mediaProvider: optional("MEDIA_PROVIDER") ?? "none",
+    firebaseConfigured: Boolean(
+      optional("FIREBASE_PROJECT_ID") &&
+        optional("FIREBASE_CLIENT_EMAIL") &&
+        optional("FIREBASE_PRIVATE_KEY") &&
+        optional("NEXT_PUBLIC_FIREBASE_API_KEY") &&
+        optional("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN") &&
+        optional("NEXT_PUBLIC_FIREBASE_PROJECT_ID") &&
+        optional("NEXT_PUBLIC_FIREBASE_APP_ID"),
+    ),
+    rateLimitStore: optional("REDIS_URL") ? "redis" : optional("UPSTASH_REDIS_REST_URL") ? "upstash" : "database",
+    stripeConfigured: Boolean(optional("STRIPE_SECRET_KEY") && optional("STRIPE_WEBHOOK_SECRET")),
+    cloudinaryConfigured: Boolean(optional("CLOUDINARY_CLOUD_NAME") && optional("CLOUDINARY_API_KEY") && optional("CLOUDINARY_API_SECRET")),
+  };
+}
+
 export const env = validateEnv();
 
-// Re-export for convenience
 export default env;

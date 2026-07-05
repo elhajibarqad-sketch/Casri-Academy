@@ -12,8 +12,7 @@ Sentry.init({
       blockAllMedia: true,
     }),
   ],
-  beforeSend(event: any, hint: any) {
-    // Filter out sensitive data
+  beforeSend(event) {
     if (event.request) {
       delete event.request.cookies;
       delete event.request.headers;
