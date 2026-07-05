@@ -16,6 +16,15 @@ function safeNext(value: FormDataEntryValue | string | null | undefined) {
   return next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
 }
 
+function isAdminRole(role?: string) {
+  return role === "ADMIN" || role === "SUPER_ADMIN";
+}
+
+function redirectForLoginIntent(next: string, adminOnly: boolean) {
+  if (adminOnly) return next.startsWith("/admin") ? next : "/admin/dashboard";
+  return next.startsWith("/admin") ? "/dashboard" : next;
+}
+
 async function parseLoginRequest(request: NextRequest): Promise<LoginRequest | null> {
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
@@ -98,10 +107,14 @@ export async function POST(request: NextRequest) {
   if (!user?.passwordHash || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     return loginError(request, "Invalid email or password.", 401, loginRequest.wantsJson);
   }
+  if (parsed.data.adminOnly && !isAdminRole(user.role)) {
+    return loginError(request, "Admin access required.", 403, loginRequest.wantsJson);
+  }
 
+  const redirectTo = redirectForLoginIntent(loginRequest.next, parsed.data.adminOnly);
   const response = loginRequest.wantsJson
-    ? NextResponse.json({ ok: true, redirectTo: loginRequest.next })
-    : NextResponse.redirect(new URL(loginRequest.next, request.url), { status: 303 });
+    ? NextResponse.json({ ok: true, redirectTo })
+    : NextResponse.redirect(new URL(redirectTo, request.url), { status: 303 });
   setSessionCookie(response, await createSessionToken({ id: user.id, email: user.email, name: user.name, role: user.role, phoneVerified: user.phoneVerified || user.role === "ADMIN", status: user.status }));
   setCsrfCookie(response);
   return response;
