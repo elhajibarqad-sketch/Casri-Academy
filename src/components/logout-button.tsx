@@ -4,7 +4,7 @@ import { signOut } from "firebase/auth";
 import { LogOut } from "lucide-react";
 import { getFirebaseClientAuth } from "@/lib/firebase/client";
 
-export function LogoutButton() {
+export function LogoutButton({ redirectTo = "/login" }: { redirectTo?: string }) {
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     try {
@@ -12,7 +12,7 @@ export function LogoutButton() {
     } catch {
       // Firebase may be unconfigured for legacy admin sessions; the server session is already cleared.
     }
-    window.location.assign("/login");
+    window.location.assign(redirectTo);
   }
 
   return (

@@ -10,7 +10,7 @@ const items = [
   { title: "Can I preview lessons before buying?", body: "Yes. Courses can include free preview lessons so students can review the teaching style before enrolling." },
   { title: "How does course progress work?", body: "Lesson completion is tracked in your dashboard and contributes to the course completion percentage." },
   { title: "Are certificates supported?", body: "Yes. Certificate records are already part of the platform and can be issued after completion requirements are met." },
-  { title: "Can admins manage courses?", body: "Admins can manage course records, lessons, users, orders, payments, and media upload preparation." },
+  { title: "How are paid courses unlocked?", body: "Paid course access opens after payment confirmation or staff approval, depending on the payment method." },
   { title: "Is live market data financial advice?", body: "No. Live charts and market data are provided only for educational analysis and market literacy." },
 ];
 

@@ -176,7 +176,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
           <h2 className="flex items-center gap-2 text-xl font-black text-slate-950 dark:text-white"><Bell className="h-5 w-5 text-cyan-500" /> Notifications</h2>
           <div className="mt-4 grid gap-3 text-sm text-slate-500 dark:text-slate-400">
             <div>Phone verification complete.</div>
-            {pendingEnrollments.length > 0 && <div>{pendingEnrollments.length} enrollment awaiting payment or admin approval.</div>}
+            {pendingEnrollments.length > 0 && <div>{pendingEnrollments.length} enrollment awaiting payment or staff approval.</div>}
             {activeEnrollments.length === 0 && <div>Browse courses to start your first learning track.</div>}
           </div>
         </section>

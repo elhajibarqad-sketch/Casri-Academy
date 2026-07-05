@@ -94,7 +94,7 @@ export function HomeHeroSlider({ stats }: HomeHeroSliderProps) {
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-200">
             Casri Academy is a premium online academy for Forex and Cryptocurrency education: preview lessons,
-            paid tracks, live market context, progress, certificates, and admin-grade operations.
+            paid tracks, live market context, progress, certificates, and secure course access.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/courses" className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-2xl transition hover:-translate-y-0.5 hover:bg-cyan-200">

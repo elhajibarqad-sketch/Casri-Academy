@@ -5,16 +5,17 @@ import { LogoutButton } from "./logout-button";
 
 const userLinks = [
   ["Dashboard", "/dashboard", Gauge],
-  ["My courses", "/dashboard/courses", BookOpen],
+  ["My courses", "/my-courses", BookOpen],
   ["Profile", "/dashboard/profile", Settings],
 ];
 
 const adminLinks = [
-  ["Admin", "/admin", Shield],
+  ["Dashboard", "/admin/dashboard", Shield],
   ["Courses", "/admin/courses", BookOpen],
   ["Learners", "/admin/users", Users],
   ["Enrollments", "/admin/enrollments", UserRoundCheck],
   ["Orders", "/admin/orders", CreditCard],
+  ["Payments", "/admin/payments", CreditCard],
   ["Certificates", "/admin/certificates", FileBadge],
   ["Instructors", "/admin/instructors", GraduationCap],
   ["Website Content", "/admin/content", ImageIcon],
@@ -39,7 +40,7 @@ export function AppSidebar({ admin = false }: { admin?: boolean }) {
             <Icon size={18} /> {label as string}
           </Link>
         ))}
-        <LogoutButton />
+        <LogoutButton redirectTo={admin ? "/admin/login" : "/login"} />
       </nav>
     </aside>
   );

@@ -10,6 +10,7 @@ export const config = {
     "/dashboard/:path*",
     "/learner/:path*",
     "/checkout/:path*",
+    "/my-courses/:path*",
     "/admin/:path*",
     "/api/admin/:path*",
     "/api/auth/login",

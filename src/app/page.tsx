@@ -12,7 +12,7 @@ import { readableEnum } from "@/lib/utils";
 const features = [
   ["Secure learning", "Protected course player, paid access checks, certificates, and saved progress.", LockKeyhole],
   ["Live market context", "BTC, ETH, SOL and major FX rates are pulled from real public APIs.", BarChart3],
-  ["Admin operations", "Course, user, order, payment, lesson, media, and audit log foundation.", ShieldCheck],
+  ["Trusted platform", "Secure enrollments, payment records, course access, and learning history.", ShieldCheck],
 ];
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,7 @@ export default async function Home() {
             </div>
             {courses.length === 0 ? (
               <div className="rounded-[2rem] border border-slate-200 bg-white p-8 text-slate-500 shadow-soft dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-                No published courses yet. Admin can publish the first course from the course management panel.
+                No published courses yet. New learning tracks are being prepared.
               </div>
             ) : (
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">

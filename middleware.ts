@@ -3,7 +3,7 @@ import { readSessionFromToken } from "@/lib/auth/session";
 
 const SESSION_COOKIE = "casri_session";
 
-const learnerRoutes = ["/dashboard", "/learner", "/checkout"];
+const learnerRoutes = ["/dashboard", "/learner", "/checkout", "/my-courses"];
 const learnerApis = ["/api/checkout", "/api/enrollments", "/api/profile", "/api/progress"];
 const adminRoutes = ["/admin", "/api/admin"];
 const browserMutationApis = [
@@ -60,7 +60,7 @@ function isSameOriginRequest(request: NextRequest) {
 
 function loginRedirect(request: NextRequest, pathname: string) {
   const url = request.nextUrl.clone();
-  url.pathname = "/login";
+  url.pathname = pathname.startsWith("/admin") ? "/admin/login" : "/login";
   url.searchParams.set("next", pathname);
   return NextResponse.redirect(url);
 }
@@ -84,9 +84,14 @@ export async function middleware(request: NextRequest) {
   }
 
   const session = await readSessionFromToken(request.cookies.get(SESSION_COOKIE)?.value);
-  const isAdminPath = startsWithAny(pathname, adminRoutes);
+  const isAdminLoginPath = pathname === "/admin/login";
+  const isAdminPath = startsWithAny(pathname, adminRoutes) && !isAdminLoginPath;
   const isLearnerPath = startsWithAny(pathname, learnerRoutes);
   const isLearnerApi = startsWithAny(pathname, learnerApis);
+
+  if (isAdminLoginPath && session && isAdminRole(session.role)) {
+    return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+  }
 
   if (isAdminPath) {
     if (!session) {
@@ -126,6 +131,7 @@ export const config = {
     "/dashboard/:path*",
     "/learner/:path*",
     "/checkout/:path*",
+    "/my-courses/:path*",
     "/admin/:path*",
     "/api/admin/:path*",
     "/api/auth/login",

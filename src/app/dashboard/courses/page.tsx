@@ -51,10 +51,10 @@ export default async function MyCoursesPage() {
               <div className="mt-5 h-2 rounded-full bg-slate-100 dark:bg-white/10">
                 <div className="h-full rounded-full bg-cyan-400" style={{ width: `${enrollment.completionPercent}%` }} />
               </div>
-              {(enrollment.enrollmentStatus === "ACTIVE" || enrollment.enrollmentStatus === "COMPLETED") && enrollment.course.lessons[0] ? (
-                <Link href={`/dashboard/player/${enrollment.course.lessons[0].id}`} className="mt-5 inline-flex rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white dark:bg-white dark:text-slate-950">Continue learning</Link>
+              {(enrollment.enrollmentStatus === "ACTIVE" || enrollment.enrollmentStatus === "COMPLETED") ? (
+                <Link href={`/my-courses/${enrollment.course.id}`} className="mt-5 inline-flex rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white dark:bg-white dark:text-slate-950">Open course</Link>
               ) : (
-                <div className="mt-5 rounded-2xl bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:bg-amber-400/10 dark:text-amber-100">Access unlocks after payment/admin approval.</div>
+                <div className="mt-5 rounded-2xl bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:bg-amber-400/10 dark:text-amber-100">Access unlocks after payment or staff approval.</div>
               )}
             </article>
           ))}

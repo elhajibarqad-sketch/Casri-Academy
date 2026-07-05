@@ -8,7 +8,7 @@ export default function AboutPage() {
       <PageHero
         eyebrow="About Casri Academy"
         title="A modern academy for disciplined market education."
-        body="Casri Academy exists to turn noisy Forex and Crypto learning into a calm curriculum with protected content, real market context, progress tracking, and admin-grade operations."
+        body="Casri Academy exists to turn noisy Forex and Crypto learning into a calm curriculum with protected content, real market context, progress tracking, and secure course access."
       />
       <section className="mx-auto max-w-7xl px-5 py-14">
         <div className="grid gap-5 md:grid-cols-5">

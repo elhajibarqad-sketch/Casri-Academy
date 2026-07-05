@@ -26,7 +26,7 @@ export default async function CoursesPage() {
         </div>
         {courses.length === 0 ? (
           <div className="rounded-[2rem] border border-slate-200 bg-white p-8 text-slate-500 shadow-soft dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-            No published courses yet. Create and publish a course from the admin panel.
+            No published courses yet. New learning tracks are being prepared.
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
